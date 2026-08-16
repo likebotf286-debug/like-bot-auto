@@ -23,7 +23,7 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN', '8307741402:AAGLI1lDZY6mbG-EwGXSxVZeZs62
 API_URL = os.environ.get('API_URL', 'https://like-api-frexy.up.railway.app')
 ADMIN_IDS = [int(id.strip()) for id in os.environ.get('ADMIN_IDS', '6417430059').split(',')]
 ALLOWED_GROUP_ID = int(os.environ.get('ALLOWED_GROUP_ID', '-1003982689528'))
-VIDEO_HOST_URL = os.environ.get('VIDEO_HOST_URL', 'https://your-video-host.com')
+VIDEO_HOST_URL = os.environ.get('VIDEO_HOST_URL', 'https://files.catbox.moe/3dfc4m.mp4')
 
 # Data storage
 user_data = {}
