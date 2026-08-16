@@ -19,10 +19,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-BOT_TOKEN = os.environ.get('BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
+BOT_TOKEN = os.environ.get('BOT_TOKEN', '8307741402:AAGLI1lDZY6mbG-EwGXSxVZeZs62aeuPktc')
 API_URL = os.environ.get('API_URL', 'https://like-api-frexy.up.railway.app')
-ADMIN_IDS = [int(id.strip()) for id in os.environ.get('ADMIN_IDS', '123456789').split(',')]
-ALLOWED_GROUP_ID = int(os.environ.get('ALLOWED_GROUP_ID', '-1001234567890'))
+ADMIN_IDS = [int(id.strip()) for id in os.environ.get('ADMIN_IDS', '6417430059').split(',')]
+ALLOWED_GROUP_ID = int(os.environ.get('ALLOWED_GROUP_ID', '-1003982689528'))
 VIDEO_HOST_URL = os.environ.get('VIDEO_HOST_URL', 'https://your-video-host.com')
 
 # Data storage
