@@ -2,10 +2,16 @@ import asyncio
 import aiohttp
 import json
 import logging
+import os
+import sys
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import re
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -14,12 +20,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configuration
-BOT_TOKEN = "YOUR_BOT_TOKEN"  # Replace with your bot token
-GROUP_ID = -1001234567890  # Replace with your group ID
-API_URL = "https://like-api-frexy.up.railway.app/like?uid={}&server_name={}"
-ADMIN_IDS = [123456789, 987654321]  # Replace with admin user IDs
-MEDIA_URL = "https://your-hosted-media-url.com/video.mp4"  # Replace with your hosted media URL
+# Configuration from environment variables
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+if not BOT_TOKEN:
+    logger.error("BOT_TOKEN not set in environment variables")
+    sys.exit(1)
+
+GROUP_ID = int(os.getenv('GROUP_ID', -1001234567890))
+ADMIN_IDS = [int(id.strip()) for id in os.getenv('ADMIN_IDS', '').split(',') if id.strip()]
+if not ADMIN_IDS:
+    logger.error("ADMIN_IDS not set in environment variables")
+    sys.exit(1)
+
+API_URL = os.getenv('API_URL', "https://like-api-frexy.up.railway.app/like?uid={}&server_name={}")
+MEDIA_URL = os.getenv('MEDIA_URL', "https://your-hosted-media-url.com/video.mp4")
 
 # Database (in-memory for simplicity, use proper DB in production)
 user_data = {}
@@ -32,28 +46,39 @@ class LikeBot:
     def __init__(self):
         self.running = False
         self.queue = asyncio.Queue()
+        self.processing = False
         
     async def send_like(self, uid, region, is_admin=False, is_target=False):
         """Send like to Facebook UID"""
         try:
             url = API_URL.format(uid, region)
+            logger.info(f"Sending like to UID: {uid} in region: {region}")
+            
             async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
+                async with session.get(url, timeout=30) as response:
                     if response.status == 200:
                         data = await response.json()
+                        logger.info(f"Like sent successfully to {uid}")
                         return data
                     else:
-                        return {"error": f"API Error: {response.status}"}
+                        error_msg = f"API Error: {response.status}"
+                        logger.error(error_msg)
+                        return {"error": error_msg}
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout while sending like to {uid}")
+            return {"error": "Request timeout"}
         except Exception as e:
+            logger.error(f"Error sending like to {uid}: {str(e)}")
             return {"error": str(e)}
 
     def format_response(self, data, uid, region, is_target=False):
         """Format the response message with quote and bold formatting"""
-        name = data.get('name', 'Unknown User')
-        current_likes = data.get('current_likes', 0)
-        likes_given = data.get('likes_given', 0)
-        
-        formatted_msg = f"""<blockquote>⚡ LIKE SENT SUCCESSFUL! ⚡
+        try:
+            name = data.get('name', 'Unknown User')
+            current_likes = data.get('current_likes', 0)
+            likes_given = data.get('likes_given', 0)
+            
+            formatted_msg = f"""<blockquote>⚡ LIKE SENT SUCCESSFUL! ⚡
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 👤 NAME : <b>{name}</b>
 🆔 UID : <b>{uid}</b>
@@ -71,8 +96,11 @@ class LikeBot:
 💎 VIP USER UNLIMITED REQUEST
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✨ POWERED BY @Frexy1only</blockquote>"""
-        
-        return formatted_msg
+            
+            return formatted_msg
+        except Exception as e:
+            logger.error(f"Error formatting response: {str(e)}")
+            return f"<b>Error formatting response</b>"
 
     async def process_auto_like(self, context):
         """Process auto-like queue"""
@@ -81,13 +109,14 @@ class LikeBot:
                 # Check current time for scheduled start (7 AM)
                 current_time = datetime.now()
                 if current_time.hour >= 7:
-                    for uid, settings in auto_like_settings.items():
+                    for uid, settings in list(auto_like_settings.items()):
                         if 'active' in settings and settings['active']:
                             # Check if target reached
                             target = target_like_settings.get(uid, {}).get('target_likes', float('inf'))
                             current_likes = daily_likes.get(uid, 0)
                             
                             if current_likes >= target:
+                                logger.info(f"Target reached for UID {uid}")
                                 continue
                             
                             region = settings.get('region', 'BD')
@@ -95,25 +124,40 @@ class LikeBot:
                             
                             if result and 'error' not in result:
                                 daily_likes[uid] = daily_likes.get(uid, 0) + 1
-                                current_likes = result.get('current_likes', 0)
                                 
                                 # Send notification to group
                                 formatted_msg = self.format_response(result, uid, region)
                                 
-                                # Send with media
-                                await context.bot.send_video(
-                                    chat_id=GROUP_ID,
-                                    video=MEDIA_URL,
-                                    caption=formatted_msg,
-                                    parse_mode='HTML'
-                                )
+                                try:
+                                    # Send with media
+                                    await context.bot.send_video(
+                                        chat_id=GROUP_ID,
+                                        video=MEDIA_URL,
+                                        caption=formatted_msg,
+                                        parse_mode='HTML',
+                                        timeout=30
+                                    )
+                                    logger.info(f"Auto-like notification sent to group for UID {uid}")
+                                except Exception as e:
+                                    logger.error(f"Error sending auto-like notification: {str(e)}")
+                                    # Try sending without video if video fails
+                                    try:
+                                        await context.bot.send_message(
+                                            chat_id=GROUP_ID,
+                                            text=formatted_msg,
+                                            parse_mode='HTML'
+                                        )
+                                    except Exception as e2:
+                                        logger.error(f"Error sending text notification: {str(e2)}")
                             
                             # Wait 30 seconds before next like
                             await asyncio.sleep(30)
                 else:
                     # If before 7 AM, wait until 7 AM
                     wait_seconds = (7 - current_time.hour) * 3600 - current_time.minute * 60
-                    await asyncio.sleep(wait_seconds)
+                    if wait_seconds > 0:
+                        logger.info(f"Waiting {wait_seconds} seconds until 7 AM")
+                        await asyncio.sleep(wait_seconds)
                     
             except Exception as e:
                 logger.error(f"Error in auto-like processing: {e}")
@@ -177,7 +221,7 @@ async def like_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = datetime.now().date().isoformat()
     key = f"{user_id}_{today}"
     
-    if user_id not in ADMIN_IDS:
+    if user_id not in [str(admin) for admin in ADMIN_IDS]:
         if daily_likes.get(key, 0) >= 1:
             await update.message.reply_text(
                 "<b>❌ Daily limit reached!</b>\n"
@@ -195,20 +239,41 @@ async def like_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         formatted_msg = like_bot.format_response(result, uid, region)
         
-        # Send with media
-        await update.message.reply_video(
-            video=MEDIA_URL,
-            caption=formatted_msg,
-            parse_mode='HTML'
-        )
+        try:
+            # Send with video
+            await update.message.reply_video(
+                video=MEDIA_URL,
+                caption=formatted_msg,
+                parse_mode='HTML',
+                timeout=30
+            )
+        except Exception as e:
+            logger.error(f"Error sending video: {str(e)}")
+            # Fallback to text only
+            await update.message.reply_text(
+                formatted_msg,
+                parse_mode='HTML'
+            )
         
         # Also send to group
-        await context.bot.send_video(
-            chat_id=GROUP_ID,
-            video=MEDIA_URL,
-            caption=formatted_msg,
-            parse_mode='HTML'
-        )
+        try:
+            await context.bot.send_video(
+                chat_id=GROUP_ID,
+                video=MEDIA_URL,
+                caption=formatted_msg,
+                parse_mode='HTML',
+                timeout=30
+            )
+        except Exception as e:
+            logger.error(f"Error sending to group: {str(e)}")
+            try:
+                await context.bot.send_message(
+                    chat_id=GROUP_ID,
+                    text=formatted_msg,
+                    parse_mode='HTML'
+                )
+            except Exception as e2:
+                logger.error(f"Error sending text to group: {str(e2)}")
     else:
         error_msg = result.get('error', 'Unknown error')
         await update.message.reply_text(
@@ -273,6 +338,7 @@ async def autolike_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not like_bot.running:
         like_bot.running = True
         asyncio.create_task(like_bot.process_auto_like(context))
+        logger.info("Auto-like process started")
     
     await update.message.reply_text(
         f"<b>✅ Auto-like configured!</b>\n\n"
@@ -306,7 +372,14 @@ async def tlike_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     region = args[0]
     uid = args[1]
-    target = int(args[2])
+    try:
+        target = int(args[2])
+    except ValueError:
+        await update.message.reply_text(
+            "<b>❌ Error:</b> Target must be a number",
+            parse_mode='HTML'
+        )
+        return
     
     target_like_settings[uid] = {
         'region': region,
@@ -404,26 +477,54 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     msg += "\n📱 Powered by @Frexy1only"
     
-    await update.message.reply_text(msg, parse_mode='HTML')
+    # Split message if too long
+    if len(msg) > 4096:
+        for i in range(0, len(msg), 4096):
+            await update.message.reply_text(msg[i:i+4096], parse_mode='HTML')
+    else:
+        await update.message.reply_text(msg, parse_mode='HTML')
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle errors"""
+    logger.error(f"Update {update} caused error {context.error}")
+    try:
+        if update and update.effective_message:
+            await update.effective_message.reply_text(
+                "<b>❌ An error occurred!</b>\n"
+                "Please try again later or contact the administrator.",
+                parse_mode='HTML'
+            )
+    except Exception as e:
+        logger.error(f"Error in error handler: {str(e)}")
 
 def main():
     """Main function to run the bot"""
-    # Create application
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Add command handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("like", like_command))
-    application.add_handler(CommandHandler("status", status_command))
-    application.add_handler(CommandHandler("autolike", autolike_command))
-    application.add_handler(CommandHandler("tlike", tlike_command))
-    application.add_handler(CommandHandler("remove", remove_command))
-    application.add_handler(CommandHandler("list", list_command))
-    
-    # Start the bot
-    print("🤖 Bot is starting...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        # Create application
+        application = Application.builder().token(BOT_TOKEN).build()
+        
+        # Add command handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CommandHandler("like", like_command))
+        application.add_handler(CommandHandler("status", status_command))
+        application.add_handler(CommandHandler("autolike", autolike_command))
+        application.add_handler(CommandHandler("tlike", tlike_command))
+        application.add_handler(CommandHandler("remove", remove_command))
+        application.add_handler(CommandHandler("list", list_command))
+        
+        # Add error handler
+        application.add_error_handler(error_handler)
+        
+        # Start the bot
+        logger.info("🤖 Bot is starting...")
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True
+        )
+    except Exception as e:
+        logger.error(f"Failed to start bot: {str(e)}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
