@@ -1,0 +1,23 @@
+# render.yaml
+services:
+  - type: web
+    name: telegram-like-bot
+    runtime: python
+    repo: https://github.com/yourusername/telegram-like-bot  # Replace with your repo
+    plan: free
+    region: oregon  # or singapore, frankfurt, ohio
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: GROUP_ID
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: API_URL
+        value: https://like-api-frexy.up.railway.app/like?uid={}&server_name={}
+      - key: MEDIA_URL
+        value: https://your-hosted-media-url.com/video.mp4
+      - key: PYTHON_VERSION
+        value: 3.9.0
