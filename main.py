@@ -33,7 +33,7 @@ if not ADMIN_IDS:
     sys.exit(1)
 
 API_URL = os.getenv('API_URL', "https://like-api-frexy.up.railway.app/like?uid={}&server_name={}")
-MEDIA_URL = os.getenv('MEDIA_URL', "https://your-hosted-media-url.com/video.mp4")
+MEDIA_URL = os.getenv('MEDIA_URL', "https://sharevideo.org/fOBSNh1xZy7IJoG/watch")
 
 # Database (in-memory for simplicity, use proper DB in production)
 user_data = {}
