@@ -21,13 +21,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration from environment variables
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+BOT_TOKEN = os.getenv('8307741402:AAG0QNCV4Qr_GDSk0uSPgfjSotkVfugkNEw')
 if not BOT_TOKEN:
     logger.error("BOT_TOKEN not set in environment variables")
     sys.exit(1)
 
-GROUP_ID = int(os.getenv('GROUP_ID', -1001234567890))
-ADMIN_IDS = [int(id.strip()) for id in os.getenv('ADMIN_IDS', '').split(',') if id.strip()]
+GROUP_ID = int(os.getenv('GROUP_ID', -1003765179070))
+ADMIN_IDS = [int(id.strip()) for id in os.getenv('ADMIN_IDS', '6417430059').split(',') if id.strip()]
 if not ADMIN_IDS:
     logger.error("ADMIN_IDS not set in environment variables")
     sys.exit(1)
