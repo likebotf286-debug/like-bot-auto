@@ -1,23 +1,23 @@
 # render.yaml
 services:
   - type: web
-    name: telegram-like-bot
+    name: like-bot-auto
     runtime: python
-    repo: https://github.com/yourusername/telegram-like-bot  # Replace with your repo
+    repo: https://github.com/likebotf286-debug/like-bot-auto
     plan: free
-    region: oregon  # or singapore, frankfurt, ohio
+    region: oregon
     buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
+    startCommand: python main.py
     envVars:
       - key: BOT_TOKEN
-        sync: false
+        value: 8307741402:AAG0QNCV4Qr_GDSk0uSPgfjSotkVfugkNEw  # Replace with your actual token
       - key: GROUP_ID
-        sync: false
+        value: -1003765179070  # Replace with your group ID
       - key: ADMIN_IDS
-        sync: false
+        value: 6417430059  # Replace with your admin IDs
       - key: API_URL
         value: https://like-api-frexy.up.railway.app/like?uid={}&server_name={}
       - key: MEDIA_URL
-        value: https://your-hosted-media-url.com/video.mp4
+        value: https://sharevideo.org/fOBSNh1xZy7IJoG/watch
       - key: PYTHON_VERSION
         value: 3.9.0
